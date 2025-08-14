@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>E-Commerce Sales & Return Insights (Auto-Mapping)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#12172c; --muted:#9aa1bb; --text:#e9edff; --accent:#7c5cff; --accent2:#3dd9eb; --ok:#22c55e; --bad:#ef4444; --border:#1f2542;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:1200px;margin:0 auto;padding:20px}
+  header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .brand{display:flex;gap:12px;align-items:center}
+  .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 10px 30px rgba(124,92,255,.35)}
+  h1{font-size:22px;margin:0}
+  .muted{color:var(--muted)}
+  .btn{background:#1a2140;border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
+  .btn.primary{background:linear-gradient(135deg,#2a2f58,#232a51)}
+  .btn.good{background:#1d3a2a;border-color:#254b33}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+  input[type=file]{display:none}
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:14px}
+  .kpi .label{color:var(--muted);font-size:12px;margin-bottom:6px}
+  .kpi .val{font-size:26px;font-weight:800}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;margin-top:14px}
+  canvas{background:#0f1430;border:1px solid var(--border);border-radius:12px;padding:8px}
+  .list{display:flex;flex-direction:column;gap:10px}
+  .item{display:flex;justify-content:space-between;align-items:center;background:#0e1430;border:1px solid var(--border);padding:10px;border-radius:12px}
+  .chip{font-size:11px;border:1px solid var(--border);color:var(--muted);background:#0e1430;border-radius:999px;padding:6px 10px}
+  footer{margin:20px 0;color:var(--muted);font-size:12px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+
+  /* Mapping modal */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:20}
+  .modal{width:min(760px,92vw);background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px}
+  .modal h2{margin:0 0 6px 0}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .field{display:flex;gap:10px;align-items:center;justify-content:space-between;background:#0e1430;border:1px solid var(--border);padding:10px;border-radius:10px}
+  .field label{font-weight:700}
+  select{width:60%;background:#0b1026;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px}
+  .help{font-size:12px;color:var(--muted);margin-bottom:10px}
+  .thumbs{display:flex;gap:8px;margin-left:8px}
+  .thumbs .t{background:#0b1026;border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:11px}
+  .modal-actions{display:flex;justify-content:space-between;margin-top:12px}
+  .danger{color:#ffb4b4}
+  .hide{display:none}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>E-Commerce Sales & Return Insights <span class="muted">(Auto-Mapping)</span></h1>
+          <div class="muted" style="font-size:12px">Python-style logic • CSV-agnostic • Zero backend</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <label for="file" class="btn primary">Upload CSV</label>
+        <input id="file" type="file" accept=".csv" />
+        <button class="btn" id="mapBtn" title="Review/Change column mapping">Mapping</button>
+        <button class="btn" id="demoBtn">Load Demo</button>
+        <a class="btn good" id="downloadReport" href="#">Download Summary</a>
+      </div>
+    </header>
+
+    <!-- KPIs -->
+    <div class="kpis">
+      <div class="card kpi"><div class="label">Total Sales</div><div class="val" id="k_total_sales">—</div></div>
+      <div class="card kpi"><div class="label">Orders</div><div class="val" id="k_orders">—</div></div>
+      <div class="card kpi"><div class="label">Units Sold</div><div class="val" id="k_units">—</div></div>
+      <div class="card kpi"><div class="label">Return Rate</div><div class="val" id="k_return">—</div></div>
+      <div class="card kpi"><div class="label">Avg Rating</div><div class="val" id="k_rating">—</div></div>
+      <div class="card kpi"><div class="label">Avg Order Value</div><div class="val" id="k_aov">—</div></div>
+    </div>
+
+    <!-- Charts -->
+    <div class="grid">
+      <section class="card" style="grid-column: span 7">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <h3 class="muted" style="margin:0">Monthly Sales Trend</h3>
+          <span class="chip" id="dateRange">—</span>
+        </div>
+        <canvas id="chartMonthly" height="150"></canvas>
+        <div class="muted" id="noDate" style="margin-top:6px;display:none">No usable date column mapped — monthly chart hidden.</div>
+      </section>
+
+      <section class="card" style="grid-column: span 5">
+        <h3 class="muted" style="margin:0 0 6px 0">Top Categories (Sales)</h3>
+        <canvas id="chartCat" height="150"></canvas>
+      </section>
+
+      <section class="card" style="grid-column: span 6">
+        <h3 class="muted" style="margin:0 0 6px 0">Return Rate by Category</h3>
+        <canvas id="chartReturnCat" height="160"></canvas>
+      </section>
+
+      <section class="card" style="grid-column: span 6">
+        <h3 class="muted" style="margin:0 0 6px 0">Top Sellers (Sales)</h3>
+        <canvas id="chartSellers" height="160"></canvas>
+      </section>
+
+      <section class="card" style="grid-column: span 12">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <h3 class="muted" style="margin:0">Auto-generated Recommendations</h3>
+          <div id="recTags" class="thumbs"></div>
+        </div>
+        <div id="recs" class="list" style="margin-top:10px"></div>
+      </section>
+    </div>
+
+    <footer>
+      <div>Deploy this single file on <strong>Vercel</strong> / GitHub Pages • Works with any CSV after mapping</div>
+      <div class="muted">Tip: use a local server <code>python -m http.server</code> to load files</div>
+    </footer>
+  </div>
+
+  <!-- Mapping Modal -->
+  <div class="modal-backdrop" id="backdrop">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mapTitle">
+      <h2 id="mapTitle">Map your CSV columns</h2>
+      <p class="help">We auto-guessed based on your headers. Adjust if needed. You can select <em>Not present</em> for optional fields.</p>
+      <div class="grid2" id="mapGrid"></div>
+      <div class="modal-actions">
+        <div class="help"><span class="danger">Important:</span> Ensure <strong>Sales/Amount</strong> and <strong>Order ID</strong> are correct.</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" id="cancelMap">Cancel</button>
+          <button class="btn good" id="saveMap">Save Mapping</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ---------- CSV PARSER (quoted commas/newlines safe) ---------- */
+function parseCSV(text){
+  const rows=[]; let i=0, field="", row=[], inQ=false;
+  function pushField(){ row.push(field); field=""; }
+  function pushRow(){ rows.push(row); row=[]; }
+  while(i<text.length){
+    const c=text[i];
+    if(inQ){
+      if(c==='"' && text[i+1]==='"'){ field+='"'; i+=2; continue; }
+      if(c==='"' ){ inQ=false; i++; continue; }
+      field+=c; i++; continue;
+    }else{
+      if(c==='"'){ inQ=true; i++; continue; }
+      if(c===','){ pushField(); i++; continue; }
+      if(c==='\n'){ pushField(); pushRow(); i++; continue; }
+      if(c==='\r'){ i++; continue; }
+      field+=c; i++; continue;
+    }
+  }
+  // last field/row
+  pushField(); if(row.length>1 || (row.length===1 && row[0]!=='')) pushRow();
+  const headers = rows.shift().map(h => h.trim());
+  return rows.map(r => {
+    const obj={}; headers.forEach((h,idx)=> obj[normalize(h)] = (r[idx]??"").trim());
+    obj.__raw = r; return obj;
+  });
+}
+function normalize(s){ return s.toLowerCase().replace(/\s+/g,'_').replace(/[()]/g,''); }
+
+/* ---------- FIELD GUESSING ---------- */
+const FIELD_DEFS = [
+  { key:'orderId',   label:'Order ID', required:true,  patterns:['order','id','order_id','invoice','txn'] },
+  { key:'orderDate', label:'Order Date', required:false, patterns:['date','order_date','purchase','created'] },
+  { key:'sales',     label:'Sales / Amount', required:true, patterns:['sales','amount','revenue','total','price','net','value','amt','grand_total'] },
+  { key:'quantity',  label:'Quantity / Units', required:false, patterns:['qty','quantity','units','unit','count','pcs','pieces'] },
+  { key:'returned',  label:'Returned Flag/Units', required:false, patterns:['return','returned','refund','rto','is_return','is_refund','isreturned','returns'] },
+  { key:'rating',    label:'Rating', required:false, patterns:['rating','stars','review','score'] },
+  { key:'category',  label:'Category', required:false, patterns:['category','cat','product_category','segment','dept','department'] },
+  { key:'sellerId',  label:'Seller ID', required:false, patterns:['seller_id','vendor_id','merchant_id','sid','supplier_id'] },
+  { key:'sellerName',label:'Seller Name', required:false, patterns:['seller','vendor','supplier','merchant','store'] },
+  { key:'channel',   label:'Channel', required:false, patterns:['channel','platform','source','marketplace','app','web'] },
+];
+
+function scoreHeader(h, pats){
+  const s = normalize(h);
+  let score = 0;
+  for(const p of pats){
+    if(s===p) score+=5;
+    else if(s.includes(p)) score+=2;
+  }
+  // bonus: currency/amount hints
+  if(/amount|amt|total|revenue|price|value|₹|\$/.test(s) && pats.includes('amount')) score+=3;
+  return score;
+}
+function guessMapping(headers){
+  const map={};
+  for(const def of FIELD_DEFS){
+    let best = {name:'',score:-1};
+    for(const h of headers){
+      const sc = scoreHeader(h, def.patterns);
+      if(sc>best.score) best = {name:normalize(h),score:sc};
+    }
+    map[def.key] = def.required ? best.name || null : (best.score>0? best.name : null);
+  }
+  return map;
+}
+
+/* ---------- UI: MAPPING MODAL ---------- */
+let CURRENT_HEADERS=[], CURRENT_ROWS=[], CURRENT_MAP=null;
+
+function openMapping(initialMap){
+  const backdrop = document.getElementById('backdrop');
+  const grid = document.getElementById('mapGrid');
+  grid.innerHTML='';
+  const options = ['(Not present)'].concat(CURRENT_HEADERS);
+  FIELD_DEFS.forEach(def=>{
+    const wrap = document.createElement('div');
+    wrap.className='field';
+    const label = document.createElement('label');
+    label.textContent = def.label + (def.required?' *':'');
+    const sel = document.createElement('select');
+    options.forEach(o=>{
+      const opt=document.createElement('option');
+      const val = o==='(Not present)' ? '' : normalize(o);
+      opt.value=val; opt.textContent=o;
+      if((initialMap?.[def.key]||'')===val) opt.selected=true;
+      sel.appendChild(opt);
+    });
+    wrap.appendChild(label); wrap.appendChild(sel);
+    wrap.dataset.key = def.key;
+    grid.appendChild(wrap);
+  });
+  backdrop.style.display='flex';
+}
+function closeMapping(){ document.getElementById('backdrop').style.display='none'; }
+document.getElementById('cancelMap').onclick = closeMapping;
+document.getElementById('mapBtn').onclick = ()=> openMapping(CURRENT_MAP);
+document.getElementById('saveMap').onclick = ()=>{
+  const grid = document.getElementById('mapGrid');
+  const selects = grid.querySelectorAll('.field');
+  const m={};
+  selects.forEach(f=> m[f.dataset.key] = f.querySelector('select').value || null);
+  // validate required
+  const missing = FIELD_DEFS.filter(d=>d.required && !m[d.key]).map(d=>d.label);
+  if(missing.length){ alert('Please map required fields: ' + missing.join(', ')); return; }
+  CURRENT_MAP = m;
+  closeMapping();
+  processRows(CURRENT_ROWS, CURRENT_MAP);
+};
+
+/* ---------- UTIL: parsing & helpers ---------- */
+function parseNumber(x){
+  if(x===null || x===undefined) return 0;
+  if(typeof x==='number') return isFinite(x)?x:0;
+  const s = String(x).trim();
+  if(!s) return 0;
+  // remove currency, spaces, commas
+  const clean = s.replace(/[₹$,£€\s]/g,'').replace(/[^0-9.\-]/g,'');
+  const n = parseFloat(clean);
+  return isNaN(n)?0:n;
+}
+function parseReturned(x){
+  if(x===null||x===undefined||x==='') return 0;
+  if(typeof x==='number') return x>0?1:0;
+  const s=String(x).toLowerCase().trim();
+  if(['1','true','yes','y','return','returned','refunded'].includes(s)) return 1;
+  const n=parseNumber(s); return n>0?1:0;
+}
+function parseDateFlex(s){
+  if(!s) return null;
+  const str = String(s).trim();
+  const t1 = Date.parse(str); // ISO or MM/DD/YYYY or 'DD Mon YYYY'
+  if(!isNaN(t1)) return new Date(t1);
+  // dd/mm/yyyy or dd-mm-yyyy
+  const m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if(m){
+    const d=parseInt(m[1]), mo=parseInt(m[2])-1, y=parseInt(m[3]<100?('20'+m[3]):m[3]);
+    const dt = new Date(y,mo,d); if(!isNaN(dt)) return dt;
+  }
+  return null;
+}
+function monthKey(dt){ return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`; }
+function sum(arr){ return arr.reduce((a,b)=>a+(Number(b)||0),0); }
+function groupBy(arr,keyFn){
+  const m=new Map(); for(const it of arr){ const k=keyFn(it); if(!m.has(k)) m.set(k,[]); m.get(k).push(it); } return m;
+}
+function fmtINR(n){ return isFinite(n)? n.toLocaleString('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}) : '—'; }
+
+/* ---------- CORE: compute -> render ---------- */
+let charts=[];
+function destroyCharts(){ charts.forEach(c=>c.destroy()); charts=[]; }
+
+function computeInsights(rows, map){
+  // project rows using map
+  const projected = rows.map(r=>{
+    const get = k => map[k] ? r[map[k]] : null;
+    const obj = {
+      order_id: get('orderId'),
+      order_date: get('orderDate'),
+      sales: parseNumber(get('sales')),
+      quantity: parseNumber(get('quantity')),
+      returned: parseReturned(get('returned')),
+      rating: parseNumber(get('rating')),
+      category: get('category') || 'Unknown',
+      seller_id: get('sellerId') || '',
+      seller_name: get('sellerName') || '',
+      channel: get('channel') || 'Unknown',
+    };
+    // date parse
+    const dt = parseDateFlex(obj.order_date);
+    obj._month = dt ? monthKey(dt) : null;
+    return obj;
+  });
+
+  const totalSales = sum(projected.map(r=>r.sales));
+  const orderIds = projected.map(r=>r.order_id).filter(Boolean);
+  const totalOrders = new Set(orderIds).size || projected.length; // fallback: count rows
+  const units = sum(projected.map(r=>r.quantity));
+  const returnRate = projected.length ? sum(projected.map(r=>r.returned))/projected.length : 0;
+  const ratings = projected.map(r=>r.rating).filter(v=>v>0);
+  const avgRating = ratings.length ? sum(ratings)/ratings.length : 0;
+  const aov = totalOrders ? totalSales/totalOrders : 0;
+
+  // monthly
+  const withMonth = projected.filter(r=>r._month);
+  const byMonth = groupBy(withMonth, r=>r._month);
+  const months = Array.from(byMonth.keys()).sort();
+  const monthSales = months.map(m=>sum(byMonth.get(m).map(r=>r.sales)));
+
+  // categories
+  const byCat = groupBy(projected, r=>r.category||'Unknown');
+  const catLabels = Array.from(byCat.keys());
+  const catSales = catLabels.map(k=>sum(byCat.get(k).map(r=>r.sales)));
+  const catReturn = catLabels.map(k=>{
+    const arr=byCat.get(k); return arr.length? sum(arr.map(r=>r.returned))/arr.length : 0;
+  });
+
+  // sellers
+  const bySeller = groupBy(projected, r=>`${r.seller_id}||${r.seller_name}`);
+  const sellerAgg = Array.from(bySeller.entries()).map(([k,arr])=>{
+    const [id,name]=k.split('||');
+    return {id,name: name || id || 'Unknown', sales: sum(arr.map(r=>r.sales)), ret: arr.length? sum(arr.map(r=>r.returned))/arr.length : 0};
+  }).sort((a,b)=>b.sales-a.sales).slice(0,10);
+
+  // recs
+  const recs=[];
+  const avgRet = returnRate || 0;
+  catLabels.forEach((k,i)=>{ if(catReturn[i] > avgRet*1.2 && catReturn[i] > 0.08){
+    recs.push({title:`Reduce returns in ${k}`, body:`Return rate ${(catReturn[i]*100).toFixed(1)}% vs avg ${(avgRet*100).toFixed(1)}%. Improve images, sizing/fit info, and pre-ship QC.`});
+  }});
+  const topCatIdx = catSales.length? catSales.indexOf(Math.max(...catSales)) : -1;
+  if(topCatIdx>=0){ recs.push({title:`Scale winning category`, body:`${catLabels[topCatIdx]} leads in sales. Expand assortment & promotion.`}); }
+  if(sellerAgg.length && sellerAgg[0].ret > Math.max(avgRet*1.3,0.12)){
+    recs.push({title:`Coach seller ${sellerAgg[0].name}`, body:`High returns ${(sellerAgg[0].ret*100).toFixed(1)}%. Focus packaging & accurate descriptions.`});
+  }
+
+  return {
+    kpis:{totalSales,totalOrders,units,returnRate,avgRating,aov},
+    monthly:{labels:months,sales:monthSales},
+    categories:{labels:catLabels,sales:catSales,ret:catReturn},
+    sellers:sellerAgg,
+    recs
+  };
+}
+
+function render(data, map){
+  // KPIs
+  document.getElementById('k_total_sales').textContent = fmtINR(data.kpis.totalSales);
+  document.getElementById('k_orders').textContent = data.kpis.totalOrders.toLocaleString();
+  document.getElementById('k_units').textContent = data.kpis.units.toLocaleString();
+  document.getElementById('k_return').textContent = (data.kpis.returnRate*100).toFixed(1)+'%';
+  document.getElementById('k_rating').textContent = data.kpis.avgRating ? data.kpis.avgRating.toFixed(2) : '—';
+  document.getElementById('k_aov').textContent = fmtINR(data.kpis.aov);
+
+  // date range chip
+  const labels = data.monthly.labels;
+  document.getElementById('dateRange').textContent = labels.length ? `${labels[0]} → ${labels.at(-1)}` : '—';
+  document.getElementById('noDate').style.display = labels.length ? 'none' : 'block';
+
+  // Charts
+  destroyCharts();
+  const optAxes = {plugins:{legend:{display:false}}, scales:{x:{grid:{color:'#1a2140'}}, y:{grid:{color:'#1a2140'}}}};
+  if(labels.length){
+    charts.push(new Chart(document.getElementById('chartMonthly').getContext('2d'),{
+      type:'line', data:{labels, datasets:[{label:'Sales',data:data.monthly.sales,borderColor:'#7c5cff',backgroundColor:'rgba(124,92,255,.18)',tension:.35,fill:true,pointRadius:2}]}, options:optAxes
+    }));
+  }else{
+    const ctx = document.getElementById('chartMonthly').getContext('2d');
+    ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
+  }
+
+  if(data.categories.labels.length){
+    charts.push(new Chart(document.getElementById('chartCat').getContext('2d'),{
+      type:'bar', data:{labels:data.categories.labels, datasets:[{label:'Sales',data:data.categories.sales,backgroundColor:'#3dd9eb'}]}, options:optAxes
+    }));
+    charts.push(new Chart(document.getElementById('chartReturnCat').getContext('2d'),{
+      type:'bar', data:{labels:data.categories.labels, datasets:[{label:'Return %',data:data.categories.ret.map(v=>(v*100).toFixed(2)),backgroundColor:'#ef4444'}]},
+      options:{...optAxes, scales:{...optAxes.scales, y:{...optAxes.scales.y, ticks:{callback:v=>v+'%'}}}}
+    }));
+  }
+
+  if(data.sellers.length){
+    charts.push(new Chart(document.getElementById('chartSellers').getContext('2d'),{
+      type:'bar', data:{labels:data.sellers.map(s=>s.name||s.id||'—'), datasets:[{label:'Sales',data:data.sellers.map(s=>s.sales),backgroundColor:'#22c55e'}]}, options:optAxes
+    }));
+  }
+
+  // Recs
+  const tags = ['Listing quality','Seller coaching','Scale winners'];
+  const recTags = document.getElementById('recTags'); recTags.innerHTML='';
+  tags.forEach(t=>{ const s=document.createElement('div'); s.className='t'; s.textContent=t; recTags.appendChild(s); });
+
+  const recDiv = document.getElementById('recs'); recDiv.innerHTML='';
+  if(!data.recs.length){
+    const d=document.createElement('div'); d.className='item'; d.innerHTML='<span class="muted">No specific risks detected with current mapping.</span>'; recDiv.appendChild(d);
+  }else{
+    data.recs.forEach(r=>{
+      const d=document.createElement('div'); d.className='item';
+      d.innerHTML = `<div><strong>${r.title}</strong><div class="muted" style="margin-top:4px">${r.body}</div></div><span class="chip">Action</span>`;
+      recDiv.appendChild(d);
+    });
+  }
+
+  // Summary download
+  const report = { generated_on:new Date().toISOString(), mapping:map, kpis:data.kpis, monthly:data.monthly, categories:data.categories, sellers:data.sellers, recs:data.recs };
+  const blob = new Blob([JSON.stringify(report,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const link = document.getElementById('downloadReport'); link.href = url; link.download = 'ecom_sales_return_summary.json';
+}
+
+/* ---------- PROCESS ---------- */
+function processRows(rows, map){
+  const insights = computeInsights(rows, map);
+  render(insights, map);
+}
+
+/* ---------- LOADERS ---------- */
+document.getElementById('file').addEventListener('change', async e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const txt = await file.text();
+  const rows = parseCSV(txt);
+  CURRENT_HEADERS = Object.keys(rows[0]||{}).filter(k=>k!=='__raw');
+  CURRENT_ROWS = rows;
+  CURRENT_MAP = guessMapping(CURRENT_HEADERS);
+  openMapping(CURRENT_MAP); // confirm/adjust once, then render
+});
+
+document.getElementById('demoBtn').addEventListener('click', ()=>{
+  const csv = `Order No,Order Date,Product Category,Seller ID,Seller Name,Amount (INR),Qty,Returned?,Rating,Channel
+  O1,05/01/2024,Electronics,S1,Seller A,45,000,1,No,4.7,Marketplace
+  O2,10/02/2024,Fashion,S2,Seller B,3,420,2,Yes,3.6,Direct
+  O3,12/03/2024,Home & Kitchen,S3,Seller C,3,500,1,No,4.2,Marketplace
+  O4,20/03/2024,Electronics,S4,Seller D,2,125,1,Yes,3.8,Affiliate
+  O5,02/04/2024,Books,S5,Seller E,599,1,No,4.7,App
+  O6,18/04/2024,Fashion,S1,Seller A,3,599.10,1,No,4.3,Marketplace`;
+  const rows = parseCSV(csv);
+  CURRENT_HEADERS = Object.keys(rows[0]||{}).filter(k=>k!=='__raw');
+  CURRENT_ROWS = rows;
+  CURRENT_MAP = guessMapping(CURRENT_HEADERS);
+  openMapping(CURRENT_MAP);
+});
+
+/* First-time: blank state */
+</script>
+</body>
+</html>
