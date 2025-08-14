@@ -23,7 +23,7 @@ Built entirely in **HTML**, with embedded CSS and JavaScript.
 
 ## 📂 Project Structure
 ```
-└── project.html   # Main dashboard file with all code inline
+└── index.html   # Main dashboard file with all code inline
 ```
 
 ## 📦 Setup
